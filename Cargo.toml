@@ -1,6 +1,6 @@
 [package]
 name = "DPM-Core"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Derrick Lin"]
 description = "DPM-Core is for DPM-Server & DPM-Client."
@@ -14,6 +14,10 @@ categories = ["command-line-utilities"]
 [lib]
 name = "dpm_core"
 path = "src/lib.rs"
+
+[features]
+server = []
+client = []
 
 [dependencies]
 anyhow = "1.0.94"

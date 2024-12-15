@@ -136,7 +136,6 @@ pub struct PackageBasicInfo {
     /// 套件的依賴列表（可選）
     pub dependencies: Option<Vec<Dependency>>,
 }
-
 impl RepoInfo {
     /// 建立一個新的 `RepoInfo` 實例
     pub fn new() -> Self {
@@ -154,6 +153,24 @@ impl RepoInfo {
     pub fn has_package(&self, package_name: &str) -> bool {
         self.packages.contains_key(package_name)
     }
+    /// 根據名稱獲取套件
+    ///
+    /// # 參數
+    /// - `package_name`: 套件名稱
+    ///
+    /// # 回傳
+    /// 回傳套件資訊或錯誤
+    pub fn get_package(&self, package_name: &str) -> Result<&PackageBasicInfo> {
+        match self.packages.get(package_name) {
+            Some(package) => Ok(package),
+            None => Err(anyhow::anyhow!("Package '{}' not found.", package_name)),
+        }
+    }
+}
+#[cfg(feature = "server")]
+impl RepoInfo {
+    
+    
     /// 新增一個套件到儲存庫
     ///
     /// # 參數
@@ -181,19 +198,7 @@ impl RepoInfo {
     pub fn add_package_with_info(&mut self, name: String, info: PackageBasicInfo) {
         self.packages.insert(name, info);
     }
-    /// 根據名稱獲取套件
-    ///
-    /// # 參數
-    /// - `package_name`: 套件名稱
-    ///
-    /// # 回傳
-    /// 回傳套件資訊或錯誤
-    pub fn get_package(&self, package_name: &str) -> Result<&PackageBasicInfo> {
-        match self.packages.get(package_name) {
-            Some(package) => Ok(package),
-            None => Err(anyhow::anyhow!("Package '{}' not found.", package_name)),
-        }
-    }
+    
     /// 根據名稱移除套件
     pub fn remove_package(&mut self, package_name: &str) -> Result<PackageBasicInfo> {
         match self.packages.remove(package_name) {
@@ -240,4 +245,9 @@ impl RepoInfo {
             );
         }
     }
+}
+
+#[cfg(feature = "client")]
+impl RepoInfo{
+
 }
