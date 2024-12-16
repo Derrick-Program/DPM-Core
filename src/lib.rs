@@ -296,6 +296,15 @@ impl RepoInfo {
             Err(anyhow::anyhow!("Package '{}' not found.", pkg_name))
         }
     }
+    pub async fn get_single_package_info(&self, pkg_name: &str) -> anyhow::Result<PackageInfo> {
+        if let Some(package) = self.packages.get(pkg_name) {
+            let url = package.url.as_str();
+            let package_info: PackageInfo = JsonStorage::from_url(url).await?;
+            Ok(package_info)
+        } else {
+            Err(anyhow::anyhow!("Package '{}' not found.", pkg_name))
+        }
+    }
 }
 impl Dependency {
     pub fn new(name: &str, version: &str) -> Self {
