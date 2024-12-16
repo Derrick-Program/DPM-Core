@@ -299,7 +299,11 @@ impl RepoInfo {
     pub async fn get_single_package_info(&self, pkg_name: &str) -> anyhow::Result<PackageInfo> {
         if let Some(package) = self.packages.get(pkg_name) {
             let url = package.url.as_str();
-            let package_info: PackageInfo = JsonStorage::from_url(url).await?;
+            let new_url = url.replace(
+                &package.file_name,
+                format!("src/{}/packageInfo.json", pkg_name).as_str(),
+            );
+            let package_info: PackageInfo = JsonStorage::from_url(&new_url).await?;
             Ok(package_info)
         } else {
             Err(anyhow::anyhow!("Package '{}' not found.", pkg_name))
