@@ -1,13 +1,9 @@
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::{self, Read},
-    path::Path,
-};
-
-use anyhow::Result;
+use anyhow::{Ok, Result};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer_pretty;
+use std::{collections::HashMap, env, io::Read, path::Path};
+use tokio::io::AsyncWriteExt;
 
 /// 代表套件的依賴資訊
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -72,9 +68,9 @@ where
     ///
     /// # 回傳
     /// 回傳載入的資料或錯誤
-    pub fn from_json(path: &Path) -> io::Result<T> {
+    pub fn from_json(path: &Path) -> Result<T> {
         let mut file_contents = String::new();
-        let mut file = File::open(path)?;
+        let mut file = std::fs::File::open(path)?;
         file.read_to_string(&mut file_contents)?;
         let data: T = serde_json::from_str(&file_contents)?;
         Ok(data)
@@ -85,8 +81,8 @@ where
     /// # 參數
     /// - `data`: 要儲存的資料
     /// - `path`: 儲存檔案的路徑
-    pub fn to_json(data: &T, path: &Path) -> io::Result<()> {
-        let file = File::create(path)?;
+    pub fn to_json(data: &T, path: &Path) -> Result<()> {
+        let file = std::fs::File::create(path)?;
         to_writer_pretty(file, &data)?;
         Ok(())
     }
@@ -98,7 +94,7 @@ where
     ///
     /// # 回傳
     /// 回傳載入的資料或錯誤
-    pub async fn from_url(url: &str) -> Result<T, Box<dyn std::error::Error>> {
+    pub async fn from_url(url: &str) -> Result<T> {
         let response = reqwest::get(url).await?.text().await?;
         let repo_info: T = serde_json::from_str(&response)?;
         Ok(repo_info)
@@ -110,7 +106,7 @@ where
     ///
     /// # 回傳
     /// 回傳反序列化的資料或錯誤
-    pub fn from_str_to(file_contents: &str) -> io::Result<T> {
+    pub fn from_str_to(file_contents: &str) -> Result<T> {
         let data: T = serde_json::from_str(file_contents)?;
         Ok(data)
     }
@@ -169,8 +165,6 @@ impl RepoInfo {
 }
 #[cfg(feature = "server")]
 impl RepoInfo {
-    
-    
     /// 新增一個套件到儲存庫
     ///
     /// # 參數
@@ -198,7 +192,7 @@ impl RepoInfo {
     pub fn add_package_with_info(&mut self, name: String, info: PackageBasicInfo) {
         self.packages.insert(name, info);
     }
-    
+
     /// 根據名稱移除套件
     pub fn remove_package(&mut self, package_name: &str) -> Result<PackageBasicInfo> {
         match self.packages.remove(package_name) {
@@ -248,6 +242,37 @@ impl RepoInfo {
 }
 
 #[cfg(feature = "client")]
-impl RepoInfo{
+impl RepoInfo {
+    pub async fn fetch_update_repo_info(&mut self, url: &str) -> Result<()> {
+        let repo_info: RepoInfo = JsonStorage::from_url(url).await?;
+        self.packages = repo_info.packages;
+        Ok(())
+    }
+    pub async fn fetch_package(&self, pkg_name: &str) -> Result<PackageInfo> {
+        if let Some(package) = self.packages.get(pkg_name) {
+            let url = package.url.as_str();
+            let package_info: PackageInfo = JsonStorage::from_url(url).await?;
+            let req = reqwest::get(url).await?;
+            if !req.status().is_success() {
+                return Err(anyhow::anyhow!(
+                    "Failed to fetch package '{}': {}",
+                    pkg_name,
+                    req.status()
+                ));
+            }
+            let filename = env::temp_dir().join(package.file_name.as_str());
+            let mut file = tokio::fs::File::create(&filename).await?;
+            let mut stream = req.bytes_stream();
+            while let Some(item) = stream.next().await {
+                let chunk = item?;
+                file.write_all(&chunk).await?;
+            }
 
+            Ok(package_info)
+        } else {
+            Err(anyhow::anyhow!("Package '{}' not found.", pkg_name))
+        }
+    }
 }
+
+// "rust-analyzer.cargo.features": ["client", "server"]
