@@ -162,6 +162,9 @@ impl RepoInfo {
             None => Err(anyhow::anyhow!("Package '{}' not found.", package_name)),
         }
     }
+    pub fn get_package_handler(&self) -> &HashMap<String, PackageBasicInfo> {
+        &self.packages
+    }
 }
 #[cfg(feature = "server")]
 impl RepoInfo {
