@@ -131,6 +131,13 @@ pub struct PackageBasicInfo {
     pub hash: String,
     /// 套件的依賴列表（可選）
     pub dependencies: Option<Vec<Dependency>>,
+    #[cfg(feature = "client")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
+
+    #[cfg(feature = "client")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 impl RepoInfo {
     /// 建立一個新的 `RepoInfo` 實例
@@ -167,6 +174,7 @@ impl RepoInfo {
     }
 }
 #[cfg(feature = "server")]
+#[allow(clippy::too_many_arguments)]
 impl RepoInfo {
     /// 新增一個套件到儲存庫
     ///
@@ -181,6 +189,8 @@ impl RepoInfo {
         version: String,
         hash: String,
         dependencies: Option<Vec<Dependency>>,
+        #[cfg(feature = "client")] entry: Option<String>,
+        #[cfg(feature = "client")] description: Option<String>,
     ) {
         let package = PackageBasicInfo {
             url,
@@ -188,6 +198,10 @@ impl RepoInfo {
             version,
             hash,
             dependencies,
+            #[cfg(feature = "client")]
+            entry,
+            #[cfg(feature = "client")]
+            description,
         };
         self.packages.insert(name, package);
     }
@@ -212,6 +226,8 @@ impl RepoInfo {
         version: Option<String>,
         hash: Option<String>,
         dependencies: Option<Vec<Dependency>>,
+        #[cfg(feature = "client")] entry: Option<String>,
+        #[cfg(feature = "client")] description: Option<String>,
     ) {
         if let Some(existing_package) = self.packages.get_mut(package_name) {
             if let Some(new_url) = url {
@@ -238,6 +254,10 @@ impl RepoInfo {
                     version: version.unwrap_or_default(),
                     hash: hash.unwrap_or_default(),
                     dependencies: None,
+                    #[cfg(feature = "client")]
+                    entry,
+                    #[cfg(feature = "client")]
+                    description,
                 },
             );
         }
