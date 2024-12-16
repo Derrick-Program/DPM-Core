@@ -277,5 +277,13 @@ impl RepoInfo {
         }
     }
 }
+impl Dependency {
+    pub fn new(name: &str, version: &str) -> Self {
+        Dependency {
+            name: name.to_owned(),
+            version: version.to_owned(),
+        }
+    }
+}
 
 // "rust-analyzer.cargo.features": ["client", "server"]
