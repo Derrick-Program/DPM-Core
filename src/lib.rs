@@ -1,4 +1,6 @@
+mod error;
 use anyhow::{Ok, Result};
+pub use error::{CoreError, CoreResult};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer_pretty;
