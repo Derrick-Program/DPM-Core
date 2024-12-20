@@ -1,5 +1,4 @@
 mod error;
-use anyhow::{Ok, Result};
 pub use error::*;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -70,11 +69,11 @@ where
     ///
     /// # 回傳
     /// 回傳載入的資料或錯誤
-    pub fn from_json(path: &Path) -> Result<T> {
+    pub fn from_json(path: &Path) -> CoreResult<T> {
         let mut file_contents = String::new();
         let mut file = std::fs::File::open(path)?;
         file.read_to_string(&mut file_contents)?;
-        let data: T = serde_json::from_str(&file_contents)?;
+        let data: T = serde_json::from_str(&file_contents).map_err(CoreError::JsonError)?;
         Ok(data)
     }
 
@@ -83,7 +82,7 @@ where
     /// # 參數
     /// - `data`: 要儲存的資料
     /// - `path`: 儲存檔案的路徑
-    pub fn to_json(data: &T, path: &Path) -> Result<()> {
+    pub fn to_json(data: &T, path: &Path) -> CoreResult<()> {
         let file = std::fs::File::create(path)?;
         to_writer_pretty(file, &data)?;
         Ok(())
@@ -96,8 +95,13 @@ where
     ///
     /// # 回傳
     /// 回傳載入的資料或錯誤
-    pub async fn from_url(url: &str) -> Result<T> {
-        let response = reqwest::get(url).await?.text().await?;
+    pub async fn from_url(url: &str) -> CoreResult<T> {
+        let response = reqwest::get(url)
+            .await
+            .map_err(|e| CoreError::NetworkError(e.to_string()))?
+            .text()
+            .await
+            .map_err(|e| CoreError::NetworkError(e.to_string()))?;
         let repo_info: T = serde_json::from_str(&response)?;
         Ok(repo_info)
     }
@@ -108,7 +112,7 @@ where
     ///
     /// # 回傳
     /// 回傳反序列化的資料或錯誤
-    pub fn from_str_to(file_contents: &str) -> Result<T> {
+    pub fn from_str_to(file_contents: &str) -> CoreResult<T> {
         let data: T = serde_json::from_str(file_contents)?;
         Ok(data)
     }
@@ -165,10 +169,10 @@ impl RepoInfo {
     ///
     /// # 回傳
     /// 回傳套件資訊或錯誤
-    pub fn get_package(&self, package_name: &str) -> Result<&PackageBasicInfo> {
+    pub fn get_package(&self, package_name: &str) -> CoreResult<&PackageBasicInfo> {
         match self.packages.get(package_name) {
             Some(package) => Ok(package),
-            None => Err(anyhow::anyhow!("Package '{}' not found.", package_name)),
+            None => Err(CoreError::PackageNotFound(package_name.to_string())),
         }
     }
     pub fn get_package_handler(&self) -> &HashMap<String, PackageBasicInfo> {
@@ -213,10 +217,10 @@ impl RepoInfo {
     }
 
     /// 根據名稱移除套件
-    pub fn remove_package(&mut self, package_name: &str) -> Result<PackageBasicInfo> {
+    pub fn remove_package(&mut self, package_name: &str) -> CoreResult<PackageBasicInfo> {
         match self.packages.remove(package_name) {
             Some(package) => Ok(package),
-            None => Err(anyhow::anyhow!("Package '{}' not found.", package_name)),
+            None => Err(CoreError::PackageNotFound(package_name.to_string())),
         }
     }
     /// 更新儲存庫中的套件資訊
@@ -268,34 +272,36 @@ impl RepoInfo {
 
 #[cfg(feature = "client")]
 impl RepoInfo {
-    pub async fn fetch_update_repo_info(&mut self, url: &str) -> Result<()> {
+    pub async fn fetch_update_repo_info(&mut self, url: &str) -> CoreResult<()> {
         let repo_info: RepoInfo = JsonStorage::from_url(url).await?;
         self.packages = repo_info.packages;
         Ok(())
     }
-    pub async fn fetch_package(&self, pkg_name: &str) -> Result<PackageInfo> {
+    pub async fn fetch_package(&self, pkg_name: &str) -> CoreResult<PackageInfo> {
         if let Some(package) = self.packages.get(pkg_name) {
             let url = package.url.as_str();
             let package_info: PackageInfo = JsonStorage::from_url(url).await?;
-            let req = reqwest::get(url).await?;
+            let req = reqwest::get(url)
+                .await
+                .map_err(|e| CoreError::NetworkError(e.to_string()))?;
             if !req.status().is_success() {
-                return Err(anyhow::anyhow!(
+                return Err(CoreError::NetworkError(format!(
                     "Failed to fetch package '{}': {}",
                     pkg_name,
                     req.status()
-                ));
+                )));
             }
             let filename = env::temp_dir().join(package.file_name.as_str());
             let mut file = tokio::fs::File::create(&filename).await?;
             let mut stream = req.bytes_stream();
             while let Some(item) = stream.next().await {
-                let chunk = item?;
+                let chunk = item.map_err(|e| CoreError::NetworkError(e.to_string()))?;
                 file.write_all(&chunk).await?;
             }
 
             Ok(package_info)
         } else {
-            Err(anyhow::anyhow!("Package '{}' not found.", pkg_name))
+            Err(CoreError::PackageNotFound(pkg_name.to_string()))
         }
     }
     pub async fn get_single_package_info(&self, pkg_name: &str) -> anyhow::Result<PackageInfo> {
