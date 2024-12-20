@@ -15,7 +15,7 @@ pub enum CoreError {
     DependencyError(String),
 
     #[error("Network error: {0}")]
-    NetworkError(#[from] reqwest::Error),
+    NetworkError(String),
 
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
